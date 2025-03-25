@@ -1,0 +1,39 @@
+[package]
+name = "webgpu"
+version = "0.1.0"
+edition = "2021"
+
+
+[dependencies]
+image = "0.25.5"
+#rust_on_rails = "3.0.0"
+rust_on_rails = {path="../rust_on_rails"}
+tokio = { version = "1.43.0", features = ["full"] }
+rand = "0.9.0"
+console = "0.15.11"
+uuid = { version = "1.4", features = ["v4"] }
+crossterm = "0.28.1"
+warp = "0.3"
+serde = { version = "1.0", features = ["derive"] }
+
+[lib]
+name="main"
+crate-type=["staticlib", "cdylib", "rlib"]
+
+####################
+# cargo apk config #
+####################
+
+
+[package.metadata.android]
+package = "com.webgpu.pkg"
+build_targets = [ "aarch64-linux-android" ]
+
+[[package.metadata.android.uses_permission]]
+name = "android.permission.INTERNET"
+
+[package.metadata.android.sdk]
+min_sdk_version = 33
+target_sdk_version = 33
+
+label = "Application Name"
