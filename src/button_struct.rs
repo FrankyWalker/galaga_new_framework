@@ -1,3 +1,4 @@
+
 use rust_on_rails::canvas::{Area, CanvasItem, Shape, Text};
 use rust_on_rails::prelude::Context;
 
@@ -28,18 +29,15 @@ impl Button {
     }
 
     pub fn return_canvas_item(&self, ctx: &mut Context) {
-        let font = ctx.add_font(include_bytes!("../assets/fonts/outfit_regular.ttf").to_vec());
+        let font = ctx.add_font(include_bytes!("../assets/fonts/outfit_bold.ttf").to_vec());
 
-        let text_struct = Text::new(self.text, "FFFFFF", 255, Some(800), 25, 38, font.clone());
-
+        let text_struct = Text::new(self.text, "FFFFFF", 255, Some(800), 15, 38, font.clone());
 
         let text_size = ctx.messure_text(&text_struct);
-
 
         let width = if (text_size.0 + 24) < 48 { 48 } else { text_size.0 + 24 };
 
         let text_x = self.offset.0 + (width - text_size.0) / 2;
-
         let text_y = self.offset.1 + (self.size.1 - text_size.1) / 2;
 
         ctx.draw(
@@ -57,30 +55,3 @@ impl Button {
             ));
     }
 }
-
-// if let Some(pos) = player.current_position {
-// if grid.contains_key(&pos) {
-// if !settings.invincible {
-// if let Some(remaining_lives) = player.handle_collision() {
-// if let Some(ship) = grid.get(&pos) {
-// if ship.display_type() == "fly" {
-// let mut score_guard = score_clone2.lock().unwrap();
-// *score_guard += 100;
-// println!("Score increased by 100. New score: {}", *score_guard);
-// }
-// }
-// grid.remove(&pos);
-// } else {
-// }
-// } else {
-// if let Some(ship) = grid.get(&pos) {
-// if ship.display_type() == "fly" {
-// let mut score_guard = score_clone2.lock().unwrap();
-// *score_guard += 100;
-// println!("Score increased by 100. New score: {}", *score_guard);
-// }
-// }
-// grid.remove(&pos);
-// }
-// }
-// }

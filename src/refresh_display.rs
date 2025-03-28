@@ -6,7 +6,7 @@ use crate::ship::{AIAction, Ship, ShipAI};
 
 use crate::structs::{Cords, ShipAction, COLUMNS, ROWS};
 use crate::player::{Player, integrate_player_to_game};
-use crate::settings::{GameSettings, create_game_settings, spawn_initial_flies};
+use crate::settings::{GameSettings, spawn_initial_flies};
 
 use crate::Star;
 
@@ -29,6 +29,7 @@ pub(crate) fn refresh_display(
     bullet_upward: ImageKey,
     player_image: ImageKey,
 ) {
+    println!("refresh display");
     items.clear();
 
     let grid_width = cols * (cell_size.0 + margin) - margin;

@@ -195,6 +195,3 @@ pub fn ensure_flies_on_grid(
     }
 }
 
-pub fn create_game_settings() -> Arc<Mutex<GameSettings>> {
-    Arc::new(Mutex::new(GameSettings::new()))
-}

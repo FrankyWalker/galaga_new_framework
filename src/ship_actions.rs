@@ -67,7 +67,7 @@ pub fn ship_actions(
     rows: u32,
     cols: u32,
     settings: &mut GameSettings,
-    score: &Arc<Mutex<u32>>,
+    score: u32,
 ) {
     let half_rows = (rows / 2) as usize;
     let entries: Vec<(Cords, Uuid)> = grid
@@ -112,8 +112,8 @@ pub fn ship_actions(
                 let result = move_entity(coords, new_coords, grid);
                 if let Ok(Some(removed_type)) = result {
                     if removed_type == "fly" {
-                        let mut score_guard = score.lock().unwrap();
-                        *score_guard += 100;
+                        let mut score_guard = score;
+                        score_guard += 100;
                     }
                 }
             }
@@ -139,8 +139,8 @@ pub fn ship_actions(
                         let result = move_entity(coords, new_coords, grid);
                         if let Ok(Some(removed_type)) = result {
                             if removed_type == "fly" {
-                                let mut score_guard = score.lock().unwrap();
-                                *score_guard += 100;
+                                let mut score_guard = score;
+                                score_guard += 100;
                             }
                         }
                     } else {
@@ -167,8 +167,8 @@ pub fn ship_actions(
                 ShipAction::Remove => {
                     if let Some(ship) = grid.get(&coords) {
                         if ship.display_type() == "fly" {
-                            let mut score_guard = score.lock().unwrap();
-                            *score_guard += 100;
+                            let mut score_guard = score;
+                            score_guard += 100;
                         }
                     }
                     grid.remove(&coords);

@@ -38,7 +38,6 @@ pub fn routes(tx: mpsc::Sender<PressurePadData>) -> impl warp::Filter<Extract = 
                 if tx.send(data.clone()).await.is_err() {
                     eprintln!("Failed to send pressure data to the main task");
                 }
-                // Fix: Add explicit type parameters to the Result
                 Ok::<_, warp::Rejection>(warp::reply::json(&data))
             }
         });
@@ -52,7 +51,7 @@ pub fn routes(tx: mpsc::Sender<PressurePadData>) -> impl warp::Filter<Extract = 
 
 pub async fn run_server(tx: mpsc::Sender<PressurePadData>) {
     println!("server running");
-    let ip = IpAddr::from_str("192.168.1.120").unwrap();
+    let ip = IpAddr::from_str("192.168.1.113").unwrap();
     let port = 8080;
 
     println!("Starting Arduino server on {}:{}", ip, port);
@@ -66,15 +65,3 @@ pub async fn run_server(tx: mpsc::Sender<PressurePadData>) {
 
 
 
-       // buttons.push(Button::new(|| println!("Move Left"), (80, 40), (10, 600), "Left"));
-       // buttons.push(Button::new(|| println!("Move Right"), (80, 40), (100, 600), "Right"));
-       // buttons.push(Button::new(|| println!("Shoot"), (80, 40), (190, 600), "Shoot"));
-
-// ctx.include_assets(include_assets!("./assets"));
-//
-// let image_fly = resources::Image::new(&ctx, image::load_from_memory(include_bytes!("../assets/images/fly.png")).unwrap().into()).await;
-// let explosion = resources::Image::new(&ctx, image::load_from_memory(include_bytes!("../assets/images/explosion.png.png")).unwrap().into()).await;
-// let bullet_downward = resources::Image::new(&ctx, image::load_from_memory(include_bytes!("../assets/images/bullet_downward.png")).unwrap().into()).await;
-// let bullet_upward =  resources::Image::new(&ctx, image::load_from_memory(include_bytes!("../assets/images/bullet_upward.png")).unwrap().into()).await;
-// let player = resources::Image::new(&ctx, image::load_from_memory(include_bytes!("../assets/images/bullet_upward.png")).unwrap().into()).await;
-//

@@ -5,17 +5,18 @@ use std::sync::{Arc, Mutex};
 
 use crate::button_struct::Button;
 use crate::player::{integrate_player_to_game, Player};
-use crate::settings::{create_game_settings, ensure_flies_on_grid, spawn_initial_flies, GameSettings};
+use crate::settings::{ensure_flies_on_grid, spawn_initial_flies, GameSettings};
 use crate::ship::Ship;
 use crate::ship_actions::ship_actions;
 use crate::structs::{Cords, COLUMNS, ROWS};
-use process_messages::process_messages;
+use process_message::process_message;
 use refresh_display::refresh_display;
 use server::run_server;
 use server::PressurePadData;
 use tokio::sync::mpsc;
 use tokio::sync::Mutex as TokioMutex;
 use tokio::time::{interval, Duration};
+use warp::query;
 
 mod structs;
 mod ship;
@@ -23,12 +24,12 @@ mod player;
 mod settings;
 mod ship_actions;
 mod server;
-mod process_messages;
+mod process_message;
 mod button_struct;
 mod refresh_display;
 
 const DEFAULT_WIDTH: u32 = 850;
-const DEFAULT_HEIGHT: u32 = 1000;
+const DEFAULT_HEIGHT: u32 = 1300;
 
 #[derive(Clone)]
 struct Star {
@@ -40,15 +41,14 @@ struct Star {
 }
 
 pub struct MyApp {
-    grid: Arc<Mutex<HashMap<Cords, Ship>>>,
-    items: Arc<Mutex<Vec<CanvasItem>>>,
-    font: FontKey,
+    grid: HashMap<Cords, Ship>,
+    items: Vec<CanvasItem>,
     rows: usize,
     cols: usize,
     cell_size: (u32, u32),
     margin: u32,
-    player: Arc<Mutex<Player>>,
-    settings: Arc<Mutex<GameSettings>>,
+    player: Player,
+    settings: GameSettings,
     window_size: (u32, u32),
     buttons: Vec<Button>,
     stars: Vec<Star>,
@@ -57,7 +57,9 @@ pub struct MyApp {
     bullet_downward: ImageKey,
     bullet_upward: ImageKey,
     player_image: ImageKey,
-    score: Arc<Mutex<u32>>,
+    score: u32,
+    last_update: std::time::Instant,
+    rx_arc: Arc<TokioMutex<mpsc::Receiver<PressurePadData>>>,
 }
 
 impl App for MyApp {
@@ -77,62 +79,44 @@ impl App for MyApp {
 
         let window_size = (DEFAULT_WIDTH, DEFAULT_HEIGHT);
 
-        let score = Arc::new(Mutex::new(0));
-        let grid = Arc::new(Mutex::new(HashMap::new()));
-        let items = Arc::new(Mutex::new(Vec::new()));
-        let player = Arc::new(Mutex::new(Player::new()));
-        let settings = create_game_settings();
+        let score = 0;
+        let mut grid = HashMap::new();
+        let mut items = Vec::new();
+        let mut player = Player::new();
+        let mut settings = GameSettings::new();
 
-        ensure_flies_on_grid(&settings.lock().unwrap(), &mut grid.lock().unwrap(), rows as u32, cols as u32);
+        ensure_flies_on_grid(&settings, &mut grid, rows as u32, cols as u32);
 
         let image_fly = ctx.add_image(image::load_from_memory(include_bytes!("../assets/images/fly.png")).unwrap().into());
         let explosion = ctx.add_image(image::load_from_memory(include_bytes!("../assets/images/explosion.png")).unwrap().into());
         let bullet_downward = ctx.add_image(image::load_from_memory(include_bytes!("../assets/images/bullet_downward.png")).unwrap().into());
-        let bullet_upward =  ctx.add_image(image::load_from_memory(include_bytes!("../assets/images/bullet_upward.png")).unwrap().into());
+        let bullet_upward = ctx.add_image(image::load_from_memory(include_bytes!("../assets/images/bullet_upward.png")).unwrap().into());
         let player_image = ctx.add_image(image::load_from_memory(include_bytes!("../assets/images/spaceship.png")).unwrap().into());
 
-        let rx_arc_clone = Arc::clone(&rx_arc);
-        let player_clone_for_messages = Arc::clone(&player);
-        let settings_clone_for_messages = Arc::clone(&settings);
-        let grid_clone_for_messages = Arc::clone(&grid);
-
-        tokio::spawn(async move {
-            process_messages(
-                rx_arc_clone,
-                player_clone_for_messages,
-                settings_clone_for_messages,
-                grid_clone_for_messages
-            ).await;
-        });
-
         let mut buttons = Vec::new();
-        buttons.push(Button::new(|| println!("Fly Speed -"), (100, 40), (30, 910), "Fly Speed +"));
-        buttons.push(Button::new(|| println!("Fly Speed +"), (100, 40), (30, 850), "Fly Speed -"));
+        buttons.push(Button::new(|| println!("Fly Speed -"), (200, 40), (30, 910), "Fly Speed +"));
+        buttons.push(Button::new(|| println!("Fly Speed +"), (200, 40), (30, 850), "Fly Speed -"));
 
-        buttons.push(Button::new(|| println!("Laser Speed -"), (100, 40), (190, 910), "Laser Speed +"));
-        buttons.push(Button::new(|| println!("Laser Speed +"), (100, 40), (190, 850), "Laser Speed -"));
+        buttons.push(Button::new(|| println!("Laser Speed -"), (200, 40), (190, 910), "Laser Speed +"));
+        buttons.push(Button::new(|| println!("Laser Speed +"), (200, 40), (190, 850), "Laser Speed -"));
 
-        buttons.push(Button::new(|| println!("Flies -"), (100, 40), (380, 910), "Flies +"));
-        buttons.push(Button::new(|| println!("Flies +"), (100, 40), (380, 850), "Flies -"));
+        buttons.push(Button::new(|| println!("Flies -"), (200, 40), (380, 910), "Flies -"));
+        buttons.push(Button::new(|| println!("Flies +"), (200, 40), (380, 850), "Flies +"));
 
-        buttons.push(Button::new(|| println!("Invincible"), (100, 40), (480, 910), "Invincible"));
-        buttons.push(Button::new(|| println!("Fly Move"), (100, 40), (480, 850), "Fly Move"));
+        buttons.push(Button::new(|| println!("Invincible"), (200, 40), (480, 910), "Invincible"));
+        buttons.push(Button::new(|| println!("Fly Move"), (200, 40), (480, 850), "Fly Move"));
 
-        buttons.push(Button::new(|| println!("Laser Shoot"), (100, 40), (615, 910), "Lasers"));
-        buttons.push(Button::new(|| println!("Reset"), (100, 40), (610, 850), "Save & Restart"));
-
-        let grid_clone = Arc::clone(&grid);
-        let items_clone = Arc::clone(&items);
-        let player_clone = Arc::clone(&player);
-        let settings_clone = Arc::clone(&settings);
+        buttons.push(Button::new(|| println!("Laser Shoot"), (200, 40), (615, 910), "Lasers"));
+        buttons.push(Button::new(|| println!("Reset"), (200, 40), (610, 850), "Save & Restart"));
 
         spawn_initial_flies(
-            &settings_clone.lock().unwrap(),
-            &mut grid_clone.lock().unwrap(),
+            &settings,
+            &mut grid,
             rows as u32,
             cols as u32
         );
 
+        println!("yeet222222");
         let mut stars = Vec::new();
         let mut rng = rand::thread_rng();
         for _ in 0..150 {
@@ -152,13 +136,12 @@ impl App for MyApp {
             });
         }
 
-        //let score_clone1 = Arc::clone(&score);
-
+        println!("yeetiie3");
         refresh_display(
-            &mut grid_clone.lock().unwrap(),
-            &mut items_clone.lock().unwrap(),
-            &mut player_clone.lock().unwrap(),
-            &settings_clone.lock().unwrap(),
+            &mut grid,
+            &mut items,
+            &mut player,
+            &settings,
             rows as u32,
             cols as u32,
             cell_size,
@@ -171,100 +154,13 @@ impl App for MyApp {
             bullet_downward,
             bullet_upward,
             player_image,
-            //&score_clone1
         );
 
-
-        let grid_clone = Arc::clone(&grid);
-        let items_clone = Arc::clone(&items);
-        let player_clone = Arc::clone(&player);
-        let settings_clone = Arc::clone(&settings);
-        let stars_clone = stars.clone();
-
-        let score_clone2 = Arc::clone(&score);
-
-        let image_fly_clone = image_fly;
-        let explosion_clone = explosion;
-        let bullet_downward_clone = bullet_downward;
-        let bullet_upward_clone = bullet_upward;
-        let player_image_clone = player_image;
-
-        tokio::spawn(async move {
-            let mut interval = interval(Duration::from_millis(50));
-
-            loop {
-                interval.tick().await;
-                let mut grid = grid_clone.lock().unwrap();
-                let mut items = items_clone.lock().unwrap();
-                let mut player = player_clone.lock().unwrap();
-                let mut settings = settings_clone.lock().unwrap();
-
-                ship_actions(&mut grid, rows as u32, cols as u32, &mut settings, &score_clone2);
-
-                integrate_player_to_game(&mut player, &mut grid, &mut items, cell_size, margin);
-
-                if let Some(pos) = player.current_position {
-                    if grid.contains_key(&pos) {
-                        if !settings.invincible {
-                            if let Some(remaining_lives) = player.handle_collision() {
-                                if remaining_lives == 5 {
-                                    grid.clear();
-                                    spawn_initial_flies(
-                                        &settings,
-                                        &mut grid,
-                                        rows as u32,
-                                        cols as u32,
-                                    );
-                                }
-
-                                if let Some(ship) = grid.get(&pos) {
-                                    if ship.display_type() == "fly" {
-                                        let mut score_guard = score_clone2.lock().unwrap();
-                                        *score_guard += 100;
-                                    }
-                                }
-                                grid.remove(&pos);
-                            }
-                        } else {
-                            if let Some(ship) = grid.get(&pos) {
-                                if ship.display_type() == "fly" {
-                                    let mut score_guard = score_clone2.lock().unwrap();
-                                    *score_guard += 100;
-                                }
-                            }
-                            grid.remove(&pos);
-                        }
-                    }
-                }
-
-
-                refresh_display(
-                    &mut grid,
-                    &mut items,
-                    &mut player,
-                    &settings,
-                    rows as u32,
-                    cols as u32,
-                    cell_size,
-                    margin,
-                    window_size,
-                    0,
-                    &stars_clone,
-                    image_fly_clone,
-                    explosion_clone,
-                    bullet_downward_clone,
-                    bullet_upward_clone,
-                    player_image_clone,
-                    //&score_clone2
-                );
-
-            }
-        });
+        
 
         MyApp {
             grid,
             items,
-            font: 0,
             rows,
             cols,
             cell_size,
@@ -280,38 +176,125 @@ impl App for MyApp {
             bullet_upward,
             player_image,
             score,
+            last_update: std::time::Instant::now(),
+            rx_arc
         }
     }
 
+
     async fn draw(&mut self, ctx: &mut Context) {
+        println!("running draw function");
+
+
+            let rx_arc = self.rx_arc.clone();
+
+
+            process_message(
+                rx_arc,
+                &mut self.player,
+                &mut self.settings,
+                &mut self.grid,
+            ).await;
+
+
+            ship_actions(&mut self.grid, self.rows as u32, self.cols as u32, &mut self.settings, self.score);
+
+            integrate_player_to_game(
+                &mut self.player,
+                &mut self.grid,
+                &mut self.items,
+                self.cell_size,
+                self.margin
+            );
+
+            if let Some(pos) = self.player.current_position {
+                if self.grid.contains_key(&pos) {
+                    if !self.settings.invincible {
+                        if let Some(remaining_lives) = self.player.handle_collision() {
+                            if remaining_lives == 5 {
+                                self.grid.clear();
+                                spawn_initial_flies(
+                                    &self.settings,
+                                    &mut self.grid,
+                                    self.rows as u32,
+                                    self.cols as u32,
+                                );
+                            }
+
+                            if let Some(ship) = self.grid.get(&pos) {
+                                if ship.display_type() == "fly" {
+                                    self.score += 100;
+                                }
+                            }
+                            self.grid.remove(&pos);
+                        }
+                    } else {
+                        if let Some(ship) = self.grid.get(&pos) {
+                            if ship.display_type() == "fly" {
+                                self.score += 100;
+                            }
+                        }
+                        self.grid.remove(&pos);
+                    }
+                }
+            }
+
+            refresh_display(
+                &mut self.grid,
+                &mut self.items,
+                &mut self.player,
+                &self.settings,
+                self.rows as u32,
+                self.cols as u32,
+                self.cell_size,
+                self.margin,
+                self.window_size,
+                0,
+                &self.stars,
+                self.image_fly,
+                self.explosion,
+                self.bullet_downward,
+                self.bullet_upward,
+                self.player_image,
+            );
+
+            let mut rng = rand::thread_rng();
+            for star in &mut self.stars {
+                star.y += star.speed;
+
+                if star.y > self.window_size.1 as f32 {
+                    star.y = 0.0;
+                    star.x = rng.gen_range(0..self.window_size.0);
+                    star.speed = rng.gen_range(0.5..3.0);
+
+                    if rng.gen_bool(0.3) {
+                        star.color = match rng.gen_range(0..4) {
+                            0 => "0099FF",
+                            1 => "FF6600",
+                            2 => "FF0000",
+                            _ => "FFFF00",
+                        };
+                    }
+                }
+            }
+
+
         ctx.clear("000000");
 
-        let items = self.items.lock().unwrap();
-        for item in items.iter() {
+
+
+        for item in &self.items {
             if let CanvasItem::Shape(_, _, _, _) = item {
                 ctx.draw(*item);
             }
         }
-
-        let mut rng = rand::thread_rng();
-        for star in &mut self.stars {
-            star.y += star.speed;
-
-            if star.y > self.window_size.1 as f32 {
-                star.y = 0.0;
-                star.x = rng.gen_range(0..self.window_size.0);
-                star.speed = rng.gen_range(0.5..3.0);
-
-                if rng.gen_bool(0.3) {
-                    star.color = match rng.gen_range(0..4) {
-                        0 => "0099FF",
-                        1 => "FF6600",
-                        2 => "FF0000",
-                        _ => "FFFF00",
-                    };
-                }
+        for item in &self.items {
+            if let CanvasItem::Image(_, _, _) = item {
+                ctx.draw(*item);
             }
+        }
 
+        for star in &self.stars {
             ctx.draw(CanvasItem::Shape(
                 Area((star.x, star.y as u32), None),
                 Shape::Rectangle(0, star.size),
@@ -320,30 +303,24 @@ impl App for MyApp {
             ));
         }
 
-        for item in items.iter() {
-            if let CanvasItem::Image(_, _, _) = item {
-                ctx.draw(*item);
-            }
-        }
+        // ctx.draw(CanvasItem::Shape(
+        //     Area((9, 760), None),
+        //     Shape::RoundedRectangle(0, (805, 220), 10),
+        //     "0D1F2D",
+        //     255
+        // ));
 
-        ctx.draw(CanvasItem::Shape(
-            Area((9, 760), None),
-            Shape::RoundedRectangle(0, (805, 220), 10),
-            "0D1F2D",
-            255
-        ));
 
-        for button in &self.buttons {
-            button.return_canvas_item(ctx);
-        }
-
+        // for button in &self.buttons {
+        //     button.return_canvas_item(ctx);
+        // }
+        //
         let font = ctx.add_font(include_bytes!("../assets/fonts/outfit_bold.ttf").to_vec());
 
-        // Score display
         ctx.draw(CanvasItem::Text(
             Area((20, 20), None),
             Text::new(
-                format!("Score: {}", self.score.lock().unwrap()).leak(),
+                format!("Score: {}", self.score).leak(),
                 "FF0000",
                 255,
                 Some(800),
@@ -353,93 +330,92 @@ impl App for MyApp {
             )
         ));
 
-        let settings = self.settings.lock().unwrap();
-        let text_color = "FFFFFF";
-
-        ctx.draw(CanvasItem::Text(
-            Area((30, 780), None),
-            Text::new(
-                format!("Fly Speed: {}", settings.get_fly_speed()).leak(),
-                text_color,
-                255,
-                Some(800),
-                20,
-                25,
-                font
-            )
-        ));
-
-        ctx.draw(CanvasItem::Text(
-            Area((310, 780), None),
-            Text::new(
-                format!("Laser Speed: {}", settings.laser_speed).leak(),
-                text_color,
-                255,
-                Some(800),
-                20,
-                25,
-                font
-            )
-        ));
-
-        ctx.draw(CanvasItem::Text(
-            Area((570, 780), None),
-            Text::new(
-                format!("Flies: {}", settings.number_of_flies).leak(),
-                text_color,
-                255,
-                Some(800),
-                20,
-                25,
-                font
-            )
-        ));
-
-        ctx.draw(CanvasItem::Text(
-            Area((570, 810), None),
-            Text::new(
-                format!("Invincible: {}", if settings.invincible { "ON" } else { "OFF" }).leak(),
-                text_color,
-                255,
-                Some(800),
-                20,
-                25,
-                font
-            )
-        ));
-
-        // Third Row
-        ctx.draw(CanvasItem::Text(
-            Area((30, 810), None),
-            Text::new(
-                format!("Fly Movement: {}", if settings.fly_move { "ON" } else { "OFF" }).leak(),
-                text_color,
-                255,
-                Some(800),
-                20,
-                25,
-                font
-            )
-        ));
-
-        ctx.draw(CanvasItem::Text(
-            Area((310, 810), None),
-            Text::new(
-                format!("Laser Shoot: {}", if settings.laser_shoot { "ON" } else { "OFF" }).leak(),
-                text_color,
-                255,
-                Some(800),
-                20,
-                25,
-                font
-            )
-        ));
+        // let text_color = "FFFFFF";
+        //
+        // ctx.draw(CanvasItem::Text(
+        //     Area((30, 780), None),
+        //     Text::new(
+        //         format!("Fly Speed: {}", self.settings.get_fly_speed()).leak(),
+        //         text_color,
+        //         255,
+        //         Some(800),
+        //         20,
+        //         25,
+        //         font
+        //     )
+        // ));
+        //
+        // ctx.draw(CanvasItem::Text(
+        //     Area((310, 780), None),
+        //     Text::new(
+        //         format!("Laser Speed: {}", self.settings.laser_speed).leak(),
+        //         text_color,
+        //         255,
+        //         Some(800),
+        //         20,
+        //         25,
+        //         font
+        //     )
+        // ));
+        //
+        // ctx.draw(CanvasItem::Text(
+        //     Area((570, 780), None),
+        //     Text::new(
+        //         format!("Flies: {}", self.settings.number_of_flies).leak(),
+        //         text_color,
+        //         255,
+        //         Some(800),
+        //         20,
+        //         25,
+        //         font
+        //     )
+        // ));
+        //
+        // ctx.draw(CanvasItem::Text(
+        //     Area((570, 810), None),
+        //     Text::new(
+        //         format!("Invincible: {}", if self.settings.invincible { "ON" } else { "OFF" }).leak(),
+        //         text_color,
+        //         255,
+        //         Some(800),
+        //         20,
+        //         25,
+        //         font
+        //     )
+        // ));
+        //
+        // ctx.draw(CanvasItem::Text(
+        //     Area((30, 810), None),
+        //     Text::new(
+        //         format!("Fly Movement: {}", if self.settings.fly_move { "ON" } else { "OFF" }).leak(),
+        //         text_color,
+        //         255,
+        //         Some(800),
+        //         20,
+        //         25,
+        //         font
+        //     )
+        // ));
+        //
+        // ctx.draw(CanvasItem::Text(
+        //     Area((310, 810), None),
+        //     Text::new(
+        //         format!("Laser Shoot: {}", if self.settings.laser_shoot { "ON" } else { "OFF" }).leak(),
+        //         text_color,
+        //         255,
+        //         Some(800),
+        //         20,
+        //         25,
+        //         font
+        //     )
+        // ));
     }
+
     async fn on_click(&mut self, ctx: &mut Context) {
         let position = ctx.position;
-        let mut player = self.player.lock().unwrap();
-        let mut settings = self.settings.lock().unwrap();
-        let mut grid = self.grid.lock().unwrap();
+        let mut player = &mut self.player;
+        let mut settings = &mut self.settings;
+        let mut grid = &mut self.grid;
 
         for (index, button) in self.buttons.iter_mut().enumerate() {
             let was_clicked = button.is_within_bounds(position.0, position.1);
