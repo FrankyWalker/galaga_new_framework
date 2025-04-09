@@ -1,197 +1,235 @@
-use std::time::{Duration, Instant};
-use std::sync::{Arc, Mutex};
-use crate::ship_actions::add_ship;
+use std::time::Duration;
+use rust_on_rails::prelude::*;
+use rust_on_rails::canvas::{Area, CanvasItem, Shape, Text};
 
-pub struct GameSettings {
+#[derive(Clone)]
+pub struct Settings {
+    pub value_stats: Values,
+    settings_buttons: Buttons,
+}
+
+impl Settings {
+    pub fn new() -> Self {
+        Self {
+            value_stats: Values::new(),
+            settings_buttons: Buttons::new(),
+        }
+    }
+
+    pub fn draw(&self, ctx: &mut Context, font: FontKey) {
+        self.value_stats.draw(ctx, font);
+        self.settings_buttons.draw(ctx, font);
+    }
+
+    pub fn handle_click(&mut self, x: u32, y: u32) -> Option<ButtonAction> {
+        if let Some(action) = self.settings_buttons.find_clicked_button(x, y) {
+            self.value_stats.handle_action(action)
+        } else {
+            None
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct Values {
     pub invincible: bool,
     pub fly_move: bool,
     pub laser_shoot: bool,
-
     pub number_of_flies: u32,
-    pub fly_speed: u32,
-    pub laser_speed: u32,
-
-    last_move_time: Instant,
-    last_shot_time: Instant,
-    last_fly_move_time: Instant,
-    pub move_cooldown: Duration,
-    pub shot_cooldown: Duration,
-    pub fly_move_cooldown: Duration,
+    pub fly_speed: Duration,
+    pub laser_speed: Duration,
+    pub shooting_randomness: u32,
 }
 
-impl GameSettings {
+impl Values {
     pub fn new() -> Self {
-        let now = Instant::now();
-        let default = Self {
+        Self {
             invincible: false,
             fly_move: true,
             laser_shoot: true,
             number_of_flies: 10,
-            fly_speed: 1,
-            laser_speed: 1,
-            last_move_time: now,
-            last_shot_time: now,
-            last_fly_move_time: now,
-            move_cooldown: Duration::from_millis(250),
-            shot_cooldown: Duration::from_millis(500),
-            fly_move_cooldown: Duration::from_millis(500),
-        };
-
-        let mut settings = default;
-        settings.update_cooldowns();
-        settings
-    }
-
-    // Existing methods remain the same as in the previous implementation
-    pub fn calculate_fly_value(&self) -> u32 {
-        self.number_of_flies * 2
-    }
-
-    pub fn set_fly_speed(&mut self, value: u32) -> u32 {
-        self.fly_speed = if value < 1 {
-            1
-        } else if value > 10 {
-            10
-        } else {
-            value
-        };
-
-        self.update_cooldowns();
-        self.fly_speed
-    }
-
-    pub fn get_fly_speed(&self) -> u32 {
-        self.fly_speed
-    }
-
-    pub fn set_laser_speed(&mut self, value: u32) -> u32 {
-        self.laser_speed = if value < 1 {
-            1
-        } else if value > 6 {
-            6
-        } else {
-            value
-        };
-
-        self.update_cooldowns();
-        self.laser_speed
-    }
-
-    pub fn get_laser_speed(&self) -> u32 {
-        self.laser_speed
-    }
-
-    pub fn update_cooldowns(&mut self) {
-        self.move_cooldown = Duration::from_millis(250);
-        self.shot_cooldown = Duration::from_millis(500);
-        self.fly_move_cooldown = Duration::from_millis(500);
-    }
-
-    pub fn set_invincible(&mut self, enabled: bool) {
-        self.invincible = enabled;
-    }
-
-    pub fn can_move(&mut self) -> bool {
-        let now = Instant::now();
-        if now.duration_since(self.last_move_time) >= self.move_cooldown {
-            self.last_move_time = now;
-            true
-        } else {
-            false
+            fly_speed: Duration::from_millis(500),
+            laser_speed: Duration::from_millis(300),
+            shooting_randomness: 10,
         }
     }
 
-    pub fn can_flies_move(&mut self) -> bool {
-        if !self.fly_move {
-            return false;
+    fn handle_action(&mut self, action: ButtonAction) -> Option<ButtonAction> {
+        match action {
+            ButtonAction::FlySpeedDecrease => {
+                let millis = self.fly_speed.as_millis().saturating_sub(10);
+                self.fly_speed = Duration::from_millis(if millis == 0 { 1 } else { millis as u64 });
+                println!("Fly Speed reduced to: {} ms", self.fly_speed.as_millis());
+            }
+            ButtonAction::FlySpeedIncrease => {
+                let millis = self.fly_speed.as_millis().saturating_add(10);
+                self.fly_speed = Duration::from_millis(millis as u64);
+                println!("Fly Speed increased to: {} ms", self.fly_speed.as_millis());
+            }
+            ButtonAction::LaserSpeedIncrease => {
+                let millis = self.laser_speed.as_millis().saturating_add(10);
+                self.laser_speed = Duration::from_millis(if millis > 500 { 500 } else { millis as u64 });
+                println!("Laser Speed increased to: {} ms", self.laser_speed.as_millis());
+            }
+            ButtonAction::LaserSpeedDecrease => {
+                let millis = self.laser_speed.as_millis().saturating_sub(10);
+                self.laser_speed = Duration::from_millis(if millis == 0 { 1 } else { millis as u64 });
+                println!("Laser Speed decreased to: {} ms", self.laser_speed.as_millis());
+            }
+            ButtonAction::FliesDecrease => {
+                self.number_of_flies = self.number_of_flies.saturating_sub(1);
+            }
+            ButtonAction::FliesIncrease => {
+                self.number_of_flies = self.number_of_flies.saturating_add(1);
+            }
+            ButtonAction::ToggleInvincible => {
+                self.invincible = !self.invincible;
+            }
+            ButtonAction::ToggleFlyMovement => {
+                self.fly_move = !self.fly_move;
+            }
+            ButtonAction::ToggleLaserShooting => {
+                self.laser_shoot = !self.laser_shoot;
+            }
+            ButtonAction::Reset => {
+                return Some(ButtonAction::Reset);
+            }
         }
 
-        let now = Instant::now();
-        if now.duration_since(self.last_fly_move_time) >= self.fly_move_cooldown {
-            self.last_fly_move_time = now;
-            true
-        } else {
-            false
-        }
+        Some(action)
     }
 
-    pub fn can_shoot(&mut self, is_upward: bool) -> bool {
-        if !self.laser_shoot {
-            return is_upward;
-        }
-
-        let now = Instant::now();
-        if now.duration_since(self.last_shot_time) >= self.shot_cooldown {
-            self.last_shot_time = now;
-            true
-        } else {
-            false
-        }
+    fn draw(&self, ctx: &mut Context, font: FontKey) {
+        self.draw_stats_text(ctx, 30, 780, format!("Fly Speed: {} ms", self.fly_speed.as_millis()), font);
+        self.draw_stats_text(ctx, 310, 780, format!("Laser Speed: {} ms", self.laser_speed.as_millis()), font);
+        self.draw_stats_text(ctx, 570, 780, format!("Flies: {}", self.number_of_flies), font);
+        self.draw_stats_text(ctx, 570, 810, format!("Invincible: {}", if self.invincible { "ON" } else { "OFF" }), font);
+        self.draw_stats_text(ctx, 30, 810, format!("Fly Movement: {}", if self.fly_move { "ON" } else { "OFF" }), font);
+        self.draw_stats_text(ctx, 310, 810, format!("Laser Shoot: {}", if self.laser_shoot { "ON" } else { "OFF" }), font);
     }
 
-    pub fn set_number_of_flies(&mut self, count: u32) {
-        self.number_of_flies = count.max(1).min(10);
-    }
-
-    pub fn set_fly_movement(&mut self, enabled: bool) {
-        self.fly_move = enabled;
-    }
-
-    pub fn set_laser_shooting(&mut self, enabled: bool) {
-        self.laser_shoot = enabled;
-    }
-}
-
-pub fn spawn_initial_flies(
-    settings: &GameSettings,
-    grid: &mut std::collections::HashMap<crate::structs::Cords, crate::ship::Ship>,
-    rows: u32,
-    cols: u32
-) {
-    // Remove existing flies from the grid
-    grid.retain(|_, ship| {
-        !matches!(ship, crate::ship::Ship::Fly(_, _, _, _))
-    });
-
-    let fly_count = settings.number_of_flies;
-
-    let spacing = cols / (fly_count + 1);
-
-    let spacing = if spacing == 0 { 1 } else { spacing };
-
-    for i in 0..fly_count {
-        let row = i % 2;
-
-        let col = (i + 1) * spacing;
-
-        let col = if col >= cols { cols - 1 } else { col };
-
-        let new_fly = crate::ship::Ship::new_fly_with_randomness(
-            9,
-            settings.get_fly_speed() as u64
-        );
-
-        grid.insert(
-            crate::structs::Cords(row as usize, col as usize),
-            new_fly
+    fn draw_stats_text(&self, ctx: &mut Context, x: u32, y: u32, content: String, font: FontKey) {
+        ctx.draw(
+            CanvasItem::Text(
+                Area((x, y), None),
+                Text::new(
+                    content.leak(),
+                    "FFFFFF",
+                    255,
+                    Some(800),
+                    20,
+                    25,
+                    font
+                )
+            )
         );
     }
 }
 
-pub fn ensure_flies_on_grid(
-    settings: &GameSettings,
-    grid: &mut std::collections::HashMap<crate::structs::Cords, crate::ship::Ship>,
-    rows: u32,
-    cols: u32
-) {
-    // Count the number of fly ships currently on the grid
-    let current_fly_count = grid.values()
-        .filter(|ship| matches!(ship, crate::ship::Ship::Fly(_, _, _, _)))
-        .count();
+#[derive(Clone)]
+pub enum ButtonAction {
+    FlySpeedDecrease,
+    FlySpeedIncrease,
+    LaserSpeedIncrease,
+    LaserSpeedDecrease,
+    FliesDecrease,
+    FliesIncrease,
+    ToggleInvincible,
+    ToggleFlyMovement,
+    ToggleLaserShooting,
+    Reset,
+}
 
-    // If the number of flies is less than the configured number, spawn new flies
-    if current_fly_count < settings.number_of_flies as usize {
-        spawn_initial_flies(settings, grid, rows, cols);
+#[derive(Clone)]
+struct Button {
+    pub action: ButtonAction,
+    pub size: (u32, u32),
+    pub offset: (u32, u32),
+    pub text: &'static str,
+}
+
+impl Button {
+    fn new(action: ButtonAction, size: (u32, u32), offset: (u32, u32), text: &'static str) -> Button {
+        Button {
+            action,
+            size,
+            offset,
+            text,
+        }
+    }
+
+    fn is_within_bounds(&self, x: u32, y: u32) -> bool {
+        x >= self.offset.0 && x <= self.offset.0 + self.size.0 &&
+            y >= self.offset.1 && y <= self.offset.1 + self.size.1
     }
 }
 
+#[derive(Clone)]
+struct Buttons {
+    buttons: Vec<Button>,
+}
+
+impl Buttons {
+    fn new() -> Self {
+        Self {
+            buttons: vec![
+                Button::new(ButtonAction::FlySpeedIncrease, (130, 40), (30, 910), "Fly Speed +"),
+                Button::new(ButtonAction::FlySpeedDecrease, (130, 40), (30, 850), "Fly Speed -"),
+                Button::new(ButtonAction::LaserSpeedIncrease, (165, 40), (190, 910), "Laser Speed +"),
+                Button::new(ButtonAction::LaserSpeedDecrease, (165, 40), (190, 850), "Laser Speed -"),
+                Button::new(ButtonAction::FliesDecrease, (73, 40), (380, 910), "Flies -"),
+                Button::new(ButtonAction::FliesIncrease, (73, 40), (380, 850), "Flies +"),
+                Button::new(ButtonAction::ToggleInvincible, (105, 40), (480, 910), "Invincible"),
+                Button::new(ButtonAction::ToggleFlyMovement, (100, 40), (480, 850), "Fly Move"),
+                Button::new(ButtonAction::ToggleLaserShooting, (75, 40), (615, 910), "Lasers"),
+                Button::new(ButtonAction::Reset, (170, 40), (860, 880), "Save & Restart"),
+            ]
+        }
+    }
+
+    fn draw(&self, ctx: &mut Context, font: FontKey) {
+        for button in &self.buttons {
+            self.draw_button(ctx, button, font);
+        }
+    }
+
+    fn draw_button(&self, ctx: &mut Context, button: &Button, font: FontKey) {
+        let text_struct = Text::new(button.text, "FFFFFF", 255, Some(800), 25, 38, font);
+        let text_size = ctx.messure_text(&text_struct);
+
+        let text_x = match text_size.0 < button.size.0 {
+            true => button.offset.0 + (button.size.0 - text_size.0) / 2,
+            false => button.offset.0,
+        };
+
+        let text_y = match text_size.1 < button.size.1 {
+            true => button.offset.1 + (button.size.1 - text_size.1) / 2,
+            false => button.offset.1,
+        };
+
+        ctx.draw(
+            CanvasItem::Shape(
+                Area(button.offset, None),
+                Shape::RoundedRectangle(0, (button.size.0, 48), 5),
+                "FF4500",
+                255,
+            )
+        );
+
+        ctx.draw(
+            CanvasItem::Text(
+                Area((text_x, text_y), None),
+                text_struct
+            )
+        );
+    }
+
+    fn find_clicked_button(&self, x: u32, y: u32) -> Option<ButtonAction> {
+        for button in &self.buttons {
+            if button.is_within_bounds(x, y) {
+                return Some(button.action.clone());
+            }
+        }
+        None
+    }
+}

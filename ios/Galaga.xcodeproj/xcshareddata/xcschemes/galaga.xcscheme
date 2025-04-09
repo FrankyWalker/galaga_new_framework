@@ -15,7 +15,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "3BDB8152E4962373181B4FE5"
-               BuildableName = "ios.app"
+               BuildableName = "Galaga.app"
                BlueprintName = "Galaga"
                ReferencedContainer = "container:Galaga.xcodeproj">
             </BuildableReference>
@@ -62,7 +62,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "3BDB8152E4962373181B4FE5"
-            BuildableName = "ios.app"
+            BuildableName = "Galaga.app"
             BlueprintName = "Galaga"
             ReferencedContainer = "container:Galaga.xcodeproj">
          </BuildableReference>

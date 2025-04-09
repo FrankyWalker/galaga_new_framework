@@ -1,102 +1,68 @@
-use uuid::Uuid;
+use crate::settings::{Settings, Values};
+use crate::ship_ai::{AIAction, ShipAI};
+use crate::structs::{Cords, RelCords, ShipAction, Timer, ROWS};
 use std::collections::HashMap;
-use crate::structs::{Cords, Timer, ShipAction, RelCords, ROWS};
-use rand::Rng;
+use std::time::Duration;
+use uuid::Uuid;
 
 pub enum Ship {
-    Fly(ShipAI, bool, Uuid, u32),
-    Explosion(ShipAI, bool, Uuid),
-    Bullet(ShipAI, bool, Uuid),
+    Fly(ShipAI, Uuid),
+    Explosion(ShipAI, Uuid),
+    Bullet(ShipAI, Uuid),
 }
 
 impl Ship {
     pub fn display_type(&self) -> &str {
         match self {
-            Ship::Fly(_, _, _, _) => "fly",
-            Ship::Explosion(_, _, _) => "explosion",
-            Ship::Bullet(_, _, _) => "bullet",
+            Ship::Fly(_, _) => "fly",
+            Ship::Explosion(_, _) => "explosion",
+            Ship::Bullet(_, _) => "bullet",
         }
     }
 
     pub fn get_id(&self) -> Uuid {
         match self {
-            Ship::Fly(_, _, id, _) => *id,
-            Ship::Explosion(_, _, id) => *id,
-            Ship::Bullet(_, _, id) => *id,
+            Ship::Fly(_, id) => *id,
+            Ship::Explosion(_, id) => *id,
+            Ship::Bullet(_, id) => *id,
         }
     }
 
-    pub fn get_action(&mut self, cords: Cords, game_board: &HashMap<Cords, Ship>) -> ShipAction {
-        let action = match self {
-            Ship::Fly(ai, _, _, shooting_randomness) => {
-                let action = ai.get_action(cords, game_board, Some(*shooting_randomness));
-                action
-            },
-            Ship::Explosion(ai, _, _) => {
-                let action = ai.get_action(cords, game_board, None);
-                action
-            },
-            Ship::Bullet(ai, _, _) => {
-                let raw_action = ai.get_action(cords, game_board, None);
-
-                let action = match raw_action {
-                    ShipAction::Move(new_cords, wrapped) => {
-                        if (cords.0 == 0 && new_cords.0 == 0) ||
-                            (cords.0 == ROWS - 1 && new_cords.0 == ROWS - 1) {
-                            ShipAction::Remove
-                        } else {
-                            ShipAction::Move(new_cords, wrapped)
-                        }
-                    },
-                    other => other,
-                };
-
-                action
-            },
-        };
-        action
-    }
-
-    pub fn wrap(&self) -> bool {
+    pub fn get_action(&mut self, cords: Cords, game_board: &HashMap<Cords, Ship>, settings: &Settings) -> ShipAction {
         match self {
-            Ship::Fly(_, wrap, _, _) => *wrap,
-            Ship::Explosion(_, wrap, _) => *wrap,
-            Ship::Bullet(_, _, _) => false, 
+            Ship::Fly(ai, _) => {
+                ai.get_action(cords, game_board, settings)
+            },
+            Ship::Explosion(ai, _) => {
+                ai.get_action(cords, game_board, settings)
+            },
+            Ship::Bullet(ai, _) => {
+                ai.get_action(cords, game_board, settings)
+            },
         }
-    }
-
-    pub fn new_fly_with_randomness(shooting_randomness: u32, fly_speed: u64) -> Self {
-        let randomness = shooting_randomness.clamp(1, 10);
-
-        Self::Fly(
-            ShipAI::new(
-                fly_speed,
-                vec![
-                    AIAction::MoveOrNothing(RelCords(1, -1)),
-                    AIAction::RandomShoot,
-                    AIAction::MoveOrNothing(RelCords(-1, -1)),
-                    AIAction::RandomShoot,
-                ]
-            ),
-            true,
-            Uuid::new_v4(),
-            randomness,
-        )
     }
 
     pub fn new_fly() -> Self {
-
-        Self::new_fly_with_randomness(9, 1)  // Default to speed 1
+        Self::Fly(
+            ShipAI::new(
+                vec![
+                    AIAction::new_await(AIAction::MoveCautious(RelCords(1, 1)), |s: &Settings| s.value_stats.fly_speed),
+                    AIAction::RandomShoot,
+                    AIAction::new_await(AIAction::MoveCautious(RelCords(-1, 1)), |s: &Settings| s.value_stats.fly_speed),
+                    AIAction::RandomShoot,
+                ]
+            ),
+            Uuid::new_v4(),
+        )
     }
 
-    pub fn new_bullet(moving_down: bool, bullet_speed: u64) -> Self {
-        let movement = if moving_down { RelCords(1, 0) } else { RelCords(-1, 0) };
+    pub fn new_bullet(moving_down: bool) -> Self {
+        let movement = if moving_down {(1, 0) } else { (-1, 0)};
+
         Self::Bullet(
             ShipAI::new(
-                bullet_speed,  // Use the speed passed in
-                vec![AIAction::RelativeMove(movement)]
+                vec![AIAction::new_await(AIAction::RelativeMove(RelCords(movement.0, movement.1)), |s: &Settings| s.value_stats.laser_speed)]
             ),
-            false,
             Uuid::new_v4(),
         )
     }
@@ -104,168 +70,146 @@ impl Ship {
     pub fn new_explosion() -> Self {
         Self::Explosion(
             ShipAI::new(
-                1,
-                vec![AIAction::Remove]
+                vec![AIAction::new_await(AIAction::Remove, |_: &Settings| Duration::from_secs(2))]
             ),
-            false,
             Uuid::new_v4(),
         )
     }
 }
 
-pub struct ShipAI {
-    pub timer: Timer,
-    pub actions: Vec<AIAction>,
-    pub action_index: usize,
+pub struct ShipGrid {
+    pub grid: HashMap<Cords, Ship>,
+    pub score: u32,
 }
 
-impl ShipAI {
-    pub fn new(action_interval: u64, actions: Vec<AIAction>) -> Self {
-        ShipAI {
-            timer: Timer::new(action_interval),
-            actions,
-            action_index: 0,
+impl ShipGrid {
+    pub fn new() -> Self {
+        ShipGrid {
+            grid: HashMap::new(),
+            score: 0,
         }
     }
 
-    pub fn get_ai_action(&mut self) -> AIAction {
-        if self.actions.is_empty() {
-            return AIAction::Nothing;
-        }
 
-        if self.timer.tick() {
-            let action = self.actions[self.action_index].clone();
-            if self.action_index == self.actions.len() - 1 {
-                self.action_index = 0;
-            } else {
-                self.action_index += 1;
-            }
-            action
-        } else {
-            AIAction::Nothing
-        }
-    }
-
-    pub fn get_action(
+    pub fn move_entity(
         &mut self,
-        cords: Cords,
-        game_board: &HashMap<Cords, Ship>,
-        shooting_randomness: Option<u32>,
-    ) -> ShipAction {
-        self.get_ai_action().to_ship_action(cords, game_board, shooting_randomness)
-    }
-}
-
-pub enum Condition {
-    ShipExists(Cords),
-    PositionAvailable(RelCords),
-    ShootPositionAvailable(RelCords),
-}
-
-impl Condition {
-    pub fn evaluate(&self, cords: Cords, game_board: &HashMap<Cords, Ship>) -> bool {
-        match self {
-            Condition::ShipExists(ref target_cords) => {
-                game_board.contains_key(target_cords)
-            }
-            Condition::PositionAvailable(rel_cords) => {
-                game_board.get(&rel_cords.evaluate(cords).0).is_none()
-            }
-            Condition::ShootPositionAvailable(rel_cords) => {
-                game_board.get(&rel_cords.evaluate(cords).0).is_none()
-            }
-        }
-    }
-}
-
-#[derive(Clone)]
-pub enum AIAction {
-    Nothing,
-    Remove,
-    Shoot,
-    RandomShoot,
-    Move(Cords),
-    MoveOrNothing(RelCords),
-    ShootOrNothing,
-    RelativeMove(RelCords),
-}
-
-impl AIAction {
-    pub fn to_ship_action(
-        self,
-        cords: Cords,
-        game_board: &HashMap<Cords, Ship>,
-        shooting_randomness: Option<u32>,
-    ) -> ShipAction {
-        match self {
-            AIAction::Remove => {
-                ShipAction::Remove
-            }
-
-            AIAction::Shoot => {
-                ShipAction::Shoot
-            }
-
-            AIAction::RandomShoot => {
-                if let Some(randomness) = shooting_randomness {
-                    let mut rng = rand::thread_rng();
-
-                    let threshold = match randomness {
-                        1 => 90,
-                        2 => 80,
-                        3 => 70,
-                        4 => 60,
-                        5 => 50,
-                        6 => 40,
-                        7 => 30,
-                        8 => 20,
-                        9 => 10,
-                        10 => 5,
-                        _ => 50,
-                    };
-
-                    let condition = Condition::ShootPositionAvailable(RelCords(1, 0));
-                    if condition.evaluate(cords, game_board) && rng.gen_range(1..=100) <= threshold {
-                        ShipAction::Shoot
-                    } else {
-                        ShipAction::Nothing
+        old_coords: Cords,
+        new_coords: Cords,
+        wrapped: bool,
+    ) -> Result<Option<String>, &'static str> {
+        if wrapped {
+            if let Some(entity) = self.grid.remove(&old_coords) {
+                match entity {
+                    Ship::Bullet(_, _) => {
+                        return Ok(None);
+                    },
+                    Ship::Fly(_, _) => {
+                        return if old_coords.0 < new_coords.0 && old_coords.0 < ROWS / 2 && new_coords.0 > ROWS / 2 {
+                            self.grid.insert(old_coords, entity);
+                            Ok(None)
+                        } else {
+                            self.grid.insert(new_coords, entity);
+                            Ok(None)
+                        }
+                    },
+                    _ => {
+                        self.grid.insert(old_coords, entity);
                     }
-                } else {
-                    ShipAction::Nothing
                 }
-            }
-
-            AIAction::Move(cords) => {
-                ShipAction::Move(cords, false)
-            }
-
-            AIAction::MoveOrNothing(rel_cords) => {
-                let condition = Condition::PositionAvailable(rel_cords.clone());
-                if condition.evaluate(cords, game_board) {
-                    let (new_cords, wrap) = rel_cords.evaluate(cords);
-                    ShipAction::Move(new_cords, wrap)
-                } else {
-                    ShipAction::Nothing
-                }
-            }
-
-            AIAction::RelativeMove(rel_cords) => {
-                let (new_cords, wrapped) = rel_cords.evaluate(cords);
-                ShipAction::Move(new_cords, wrapped)
-            }
-
-            AIAction::ShootOrNothing => {
-                let condition = Condition::ShootPositionAvailable(RelCords(1, 0));
-                if condition.evaluate(cords, game_board) {
-                    ShipAction::Shoot
-                } else {
-                    ShipAction::Nothing
-                }
-            }
-
-            AIAction::Nothing => {
-                ShipAction::Nothing
             }
         }
+
+        if new_coords.0 >= ROWS {
+            if let Some(entity) = self.grid.remove(&old_coords) {
+                if matches!(entity, Ship::Bullet(_, _)) {
+                    return Ok(None);
+                } else {
+                    self.grid.insert(old_coords, entity);
+                }
+            }
+        }
+
+        if let Some(entity) = self.grid.remove(&old_coords) {
+            let is_bullet = matches!(entity, Ship::Bullet(_, _));
+
+            if self.grid.contains_key(&new_coords) {
+                if is_bullet {
+                    let existing_ship = self.grid.remove(&new_coords);
+                    let removed_type = existing_ship.as_ref().map(|ship| ship.display_type().to_string());
+
+                    self.grid.insert(new_coords, Ship::new_explosion());
+
+                    Ok(removed_type)
+                } else {
+                    self.grid.insert(old_coords, entity);
+                    Err("target pos in use")
+                }
+            } else {
+                self.grid.insert(new_coords, entity);
+                Ok(None)
+            }
+        } else {
+            Err("no entity found at old cords")
+        }
+    }
+
+    pub fn process_ship_actions(&mut self, settings: &Settings) {
+        let entries: Vec<(Cords, Uuid)> = self.grid
+            .iter()
+            .map(|(&coords, ship)| (coords, ship.get_id()))
+            .collect();
+
+        let mut actions_to_preform: Vec<(Cords, ShipAction)> = Vec::new();
+
+        for (coords, _) in &entries {
+            if let Some(mut ship) = self.grid.remove(coords) {
+                let action = ship.get_action(*coords, &self.grid, settings);
+
+                self.grid.insert(*coords, ship);
+
+                actions_to_preform.push((*coords, action));
+            }
+        }
+
+        self.execute_actions(&actions_to_preform, settings);
+    }
+
+
+    fn execute_actions(&mut self, actions: &[(Cords, ShipAction)], settings: &Settings) {
+        for (coords, action) in actions {
+            if !self.grid.contains_key(coords) {
+                continue;
+            }
+
+            match action {
+                ShipAction::Move(new_coords, wrapped) => {
+                    let result = self.move_entity(*coords, *new_coords, *wrapped);
+
+                    if let Ok(Some(removed_type)) = result {
+                        if removed_type == "fly" {
+                            self.score += 100;
+                        }
+                    }
+                },
+                ShipAction::Shoot => {
+                    let bullet_coords = Cords(coords.0 + 1, coords.1);
+                    let bullet = Ship::new_bullet(true);
+                    self.grid.insert(bullet_coords, bullet);
+                },
+                ShipAction::Remove => {
+                    if let Some(ship) = self.grid.get(coords) {
+                        if ship.display_type() == "fly" {
+                            self.score += 100;
+                        }
+                    }
+                    self.grid.remove(coords);
+                },
+                ShipAction::Nothing => {}
+            }
+        }
+    }
+
+    pub fn clear(&mut self) {
+        self.grid.clear();
     }
 }
