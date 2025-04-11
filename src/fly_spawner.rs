@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use crate::ship::Ship;
+use crate::ship::{Ship, new_fly_ship};
 use crate::structs::{Cords, COLUMNS};
 use crate::settings::Settings;
 
@@ -16,7 +16,7 @@ impl FlySpawner {
         }
     }
 
-    pub fn spawn_flies(&self, fly_count: u32) -> HashMap<Cords, Ship> {
+    pub fn spawn_flies(&self, fly_count: u32) -> HashMap<Cords, Box<dyn Ship>> {
         let spacing = if fly_count == 0 { 1 } else { self.cols as u32 / (fly_count + 1) };
 
         let mut grid = HashMap::new();
@@ -28,7 +28,7 @@ impl FlySpawner {
             }
             let position = Cords(row, col);
 
-            let new_fly = Ship::new_fly();
+            let new_fly = new_fly_ship();
 
             grid.insert(position, new_fly);
         }

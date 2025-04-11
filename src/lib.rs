@@ -139,12 +139,14 @@ impl MyApp {
     }
 
     fn process_game_state(&mut self) {
+        self.player.update();
+
         self.handle_player_actions();
 
         if let Some(star_background) = &mut self.star_background {
             star_background.on_tick();
         }
-        //self.ship_grid.cleanup_boundary_bullets();
+
         self.ship_grid.process_ship_actions(&self.settings);
     }
 

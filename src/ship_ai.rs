@@ -1,3 +1,4 @@
+// ship_ai.rs
 use crate::settings::Settings;
 use crate::ship::Ship;
 use crate::structs::{Cords, RelCords, ShipAction, ROWS};
@@ -27,7 +28,7 @@ impl ShipAI {
     pub fn get_action(
         &mut self,
         cords: Cords,
-        game_board: &HashMap<Cords, Ship>,
+        game_board: &HashMap<Cords, Box<dyn Ship>>,
         settings: &Settings,
     ) -> ShipAction {
         if self.actions.is_empty() {
@@ -53,7 +54,7 @@ pub enum Condition {
 }
 
 impl Condition {
-    pub fn evaluate(&self, cords: Cords, game_board: &HashMap<Cords, Ship>) -> bool {
+    pub fn evaluate(&self, cords: Cords, game_board: &HashMap<Cords, Box<dyn Ship>>) -> bool {
         match self {
             Condition::ShipExists(ref target_cords) => {
                 game_board.contains_key(target_cords)
@@ -86,10 +87,11 @@ impl AIAction {
     pub fn new_await(action: AIAction, get_duration: impl Fn(&Settings) -> Duration  + 'static) -> Self {
         AIAction::AwaitAction(Box::new(action), None, Box::new(get_duration))
     }
+
     pub fn evaluate(
         &mut self,
         cords: Cords,
-        game_board: &HashMap<Cords, Ship>,
+        game_board: &HashMap<Cords, Box<dyn Ship>>,
         settings: &Settings,
     ) -> AIActionResult {
         match self {
@@ -157,27 +159,16 @@ impl AIAction {
 
                         for (&check_coords, ship) in game_board.iter() {
                             if check_coords == new_cords {
-                                match ship {
-                                    Ship::Fly(_, _) => {
-                                        safe_to_move = false;
-                                        break;
-                                    },
-                                    Ship::Bullet(bullet_ai, _) => {
-                                        if let Some(AIAction::RelativeMove(bullet_rel_cords)) = bullet_ai.actions.first() {
-                                            if bullet_rel_cords.0 > 0 {
-                                                safe_to_move = false;
-                                                break;
-                                            }
-                                        } else {
-                                            safe_to_move = false;
-                                            break;
-                                        }
-                                    },
-                                    _ => {}
+                                let ship_type = ship.display_type();
+                                if ship_type == "fly" {
+                                    safe_to_move = false;
+                                    break;
+                                } else if ship_type == "bullet" {
+                                    safe_to_move = false;
+                                    break;
                                 }
                             }
                         }
-
                         if safe_to_move {
                             AIActionResult {
                                 move_on_to_next_action: true,
@@ -211,7 +202,7 @@ impl AIAction {
                     move_on_to_next_action: true,
                     ship_action: ShipAction::Move(new_cords, wrapped),
                 }
-            }
+            },
             AIAction::ShootOrNothing => {
                 let mut can_shoot = true;
 
@@ -219,7 +210,7 @@ impl AIAction {
                     let check_coords = Cords(row, cords.1);
 
                     if let Some(ship) = game_board.get(&check_coords) {
-                        if matches!(ship, Ship::Fly(_, _)) {
+                        if ship.display_type() == "fly" {
                             can_shoot = false;
                             break;
                         }
@@ -257,8 +248,7 @@ impl AIAction {
                         ship_action: ShipAction::Nothing,
                     }
                 }
-            }
-
+            },
             AIAction::Nothing => AIActionResult {
                 move_on_to_next_action: true,
                 ship_action: ShipAction::Nothing,

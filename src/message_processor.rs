@@ -21,7 +21,7 @@ impl MessageProcessor {
 
     pub async fn process_message(
         &self,
-        rx_arc:Receiver<PressurePadData>,
+        rx_arc: Receiver<PressurePadData>,
     ) -> Option<PressurePadData> {
         let mut rx = rx_arc;
         rx.recv().await
@@ -35,13 +35,13 @@ impl MessageProcessor {
         &self,
         pad_type: &PadType,
         player: &mut Player,
-        grid: &mut HashMap<Cords, Ship>,
+        grid: &mut HashMap<Cords, Box<dyn Ship>>,
     ) {
         match pad_type {
             PadType::Left => player.move_left(),
             PadType::Right => player.move_right(),
             PadType::Shoot => {
-                player.shoot(&mut Default::default());
+                player.shoot(grid);
             },
         }
     }

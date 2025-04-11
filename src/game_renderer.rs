@@ -1,10 +1,9 @@
 use crate::structs::Cords;
 use crate::player::Player;
-use crate::ship::{Ship, };
+use crate::ship::Ship;
 use crate::game_image_handler::GameImageHandler;
 use rust_on_rails::prelude::*;
 use std::collections::HashMap;
-use crate::ship_ai::AIAction;
 use crate::structs::{MARGIN, ROWS, START_X, START_Y, CELL_SIZE};
 
 pub struct GameRenderer;
@@ -19,7 +18,7 @@ impl GameRenderer {
     pub fn draw(
         &self,
         ctx: &mut Context,
-        grid: &HashMap<Cords, Ship>,
+        grid: &HashMap<Cords, Box<dyn Ship>>,
         player: &Player,
         image_handler: &GameImageHandler,
         score: u32,
@@ -42,12 +41,11 @@ impl GameRenderer {
                 font
             )
         ));
-
     }
 
     pub fn get_game_canvas_items(
         &self,
-        grid: &HashMap<Cords, Ship>,
+        grid: &HashMap<Cords, Box<dyn Ship>>,
         player: &Player,
         image_handler: &GameImageHandler,
     ) -> Vec<CanvasItem> {
@@ -74,7 +72,7 @@ impl GameRenderer {
 
     fn get_grid_items(
         &self,
-        grid: &HashMap<Cords, Ship>,
+        grid: &HashMap<Cords, Box<dyn Ship>>,
         player: &Player,
         image_handler: &GameImageHandler,
     ) -> Vec<CanvasItem> {
@@ -89,7 +87,7 @@ impl GameRenderer {
             let position = self.calculate_screen_position(cords);
 
             let image_key = self.select_image_for_ship(
-                ship,
+                ship.as_ref(),
                 image_handler.fly,
                 image_handler.explosion,
                 image_handler.bullet_downward,
@@ -125,7 +123,7 @@ impl GameRenderer {
 
     fn select_image_for_ship(
         &self,
-        ship: &Ship,
+        ship: &dyn Ship,
         image_fly: ImageKey,
         explosion: ImageKey,
         bullet_downward: ImageKey,
@@ -134,24 +132,10 @@ impl GameRenderer {
         match ship.display_type() {
             "fly" => image_fly,
             "explosion" => explosion,
-            "bullet" => self.select_bullet_image(ship, bullet_downward, bullet_upward),
-            _ => image_fly,
-        }
-    }
-
-    fn select_bullet_image(
-        &self,
-        ship: &Ship,
-        bullet_downward: ImageKey,
-        bullet_upward: ImageKey,
-    ) -> ImageKey {
-        match ship {
-            Ship::Bullet(ai, _) => match ai.actions.first() {
-                Some(AIAction::RelativeMove(rel_cords)) if rel_cords.0 > 0 => bullet_downward,
-                Some(AIAction::RelativeMove(_)) => bullet_upward,
-                _ => bullet_downward,
+            "bullet" => {
+                bullet_downward
             },
-            _ => bullet_downward,
+            _ => image_fly,
         }
     }
 

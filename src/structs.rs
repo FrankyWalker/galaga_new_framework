@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 pub const SIZE: usize = 10;
 pub const ROWS: usize = SIZE + 2;
 pub const COLUMNS: usize = SIZE + 4;
@@ -58,29 +60,122 @@ pub enum ShipAction {
     Move(Cords, bool),
 }
 
-#[derive(Clone)]
+
+
+#[derive(Clone, Debug)]
 pub struct Timer {
-    last_action_time: std::time::Instant,
+
+    last_action_time: Instant,
     interval_ms: u64,
+
+    duration: u32,
+    current: u32,
+    active: bool,
+    name: String,
 }
 
 impl Timer {
     pub fn new(interval_ms: u64) -> Self {
         Timer {
-            last_action_time: std::time::Instant::now(),
+            last_action_time: Instant::now(),
             interval_ms,
+            duration: 0,
+            current: 0,
+            active: true,
+            name: String::new(),
+        }
+    }
+
+    pub fn new_with_duration(interval_ms: u64, duration: u32, name: &str) -> Self {
+        Timer {
+            last_action_time: Instant::now(),
+            interval_ms,
+            duration,
+            current: 0,
+            active: true,
+            name: name.to_string(),
         }
     }
 
     pub fn tick(&mut self) -> bool {
-        let now = std::time::Instant::now();
+        if !self.active {
+            return false;
+        }
+
+        let now = Instant::now();
         let elapsed = now.duration_since(self.last_action_time).as_millis() as u64;
 
         if elapsed >= self.interval_ms {
             self.last_action_time = now;
+
+            self.current += 1;
+
+            if self.duration > 0 && self.current >= self.duration {
+                self.active = false;
+                return true;
+            }
+
+            return true;
+        }
+
+        false
+    }
+
+    pub fn logic_tick(&mut self) -> bool {
+        if !self.active {
+            return false;
+        }
+
+        self.current += 1;
+
+        if self.duration > 0 && self.current >= self.duration {
+            self.active = false;
             true
         } else {
             false
         }
+    }
+
+    pub fn start(&mut self) {
+        self.current = 0;
+        self.active = true;
+        self.last_action_time = Instant::now();
+    }
+
+    pub fn stop(&mut self) {
+        self.active = false;
+    }
+
+    pub fn reset(&mut self) {
+        self.current = 0;
+        self.active = true;
+        self.last_action_time = Instant::now();
+    }
+
+    pub fn is_active(&self) -> bool {
+        self.active
+    }
+
+    pub fn remaining(&self) -> u32 {
+        if !self.active || self.duration == 0 {
+            return 0;
+        }
+        self.duration.saturating_sub(self.current)
+    }
+
+    pub fn set_interval(&mut self, interval_ms: u64) {
+        self.interval_ms = interval_ms;
+    }
+
+    pub fn set_duration(&mut self, duration: u32) {
+        self.duration = duration;
+    }
+
+    pub fn set_name(&mut self, name: &str) {
+        self.name = name.to_string();
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
     }
 }
