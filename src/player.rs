@@ -2,6 +2,7 @@ use crate::ship::{Ship, new_bullet_ship};
 use crate::structs::{Cords, Timer, COLUMNS, ROWS};
 use crate::settings::Settings;
 use std::collections::HashMap;
+use std::time::{Instant, Duration};
 
 #[derive(Clone)]
 pub struct Player {
@@ -13,6 +14,7 @@ pub struct Player {
     pub is_dead: bool,
     pub blink_timer: Timer,
     pub blink_count: u8,
+    pub last_shot_time: Option<Instant>,  // Track when the last shot was fired
 }
 
 impl Player {
@@ -27,6 +29,7 @@ impl Player {
             is_dead: false,
             blink_timer: Timer::new_with_duration(50, 15, "blink_timer"),
             blink_count: 0,
+            last_shot_time: None,
         }
     }
 
@@ -59,6 +62,14 @@ impl Player {
             return false;
         }
 
+        // Check if enough time has passed since the last shot (200ms cooldown)
+        let now = Instant::now();
+        if let Some(last_time) = self.last_shot_time {
+            if now.duration_since(last_time) < Duration::from_millis(2000) {
+                return false; // Not enough time has passed
+            }
+        }
+
         match self.current_position {
             Some(pos) => {
                 let bullet_coords = Cords(pos.0.saturating_sub(1), pos.1);
@@ -67,6 +78,8 @@ impl Player {
                 } else {
                     let bullet = new_bullet_ship(false);
                     grid.insert(bullet_coords, bullet);
+                    // Update the last shot time
+                    self.last_shot_time = Some(now);
                     true
                 }
             }
@@ -122,6 +135,7 @@ impl Player {
         self.blink_count = 0;
         self.blink_timer.reset();
         self.movement_direction = 1;
+        self.last_shot_time = None;  // Reset the last shot time when player resets
     }
 
     pub fn update(&mut self) {

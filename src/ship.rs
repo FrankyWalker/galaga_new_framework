@@ -21,10 +21,10 @@ impl FlyShip {
         Self {
             ai: ShipAI::new(
                 vec![
-                    AIAction::new_await(AIAction::MoveCautious(RelCords(1, 1)), |s: &Settings| s.value_stats.fly_speed),
-                    AIAction::RandomShoot,
-                    AIAction::new_await(AIAction::MoveCautious(RelCords(-1, 1)), |s: &Settings| s.value_stats.fly_speed),
-                    AIAction::RandomShoot,
+          //          AIAction::new_await(AIAction::MoveCautious(RelCords(1, 1)), |s: &Settings| s.value_stats.fly_speed),
+                   // AIAction::RandomShoot,
+            //        AIAction::new_await(AIAction::MoveCautious(RelCords(-1, 1)), |s: &Settings| s.value_stats.fly_speed),
+                  //  AIAction::RandomShoot,
                 ]
             ),
             id: Uuid::new_v4(),
@@ -46,6 +46,111 @@ impl Ship for FlyShip {
     }
 }
 
+pub struct TikiFlyShip {
+    ai: ShipAI,
+    id: Uuid,
+}
+
+impl TikiFlyShip {
+    pub fn new() -> Self {
+        Self {
+            ai: ShipAI::new(
+                vec![
+               //     AIAction::new_await(AIAction::MoveCautious(RelCords(1, 1)), |s: &Settings| s.value_stats.fly_speed),
+                 //   AIAction::RandomShoot,
+               //     AIAction::new_await(AIAction::MoveCautious(RelCords(-1, 1)), |s: &Settings| s.value_stats.fly_speed),
+                 //   AIAction::RandomShoot,
+                ]
+            ),
+            id: Uuid::new_v4(),
+        }
+    }
+}
+
+impl Ship for TikiFlyShip {
+    fn display_type(&self) -> &str {
+        "tiki_fly"
+    }
+
+    fn get_id(&self) -> Uuid {
+        self.id
+    }
+
+    fn get_action(&mut self, cords: Cords, game_board: &HashMap<Cords, Box<dyn Ship>>, settings: &Settings) -> ShipAction {
+        self.ai.get_action(cords, game_board, settings)
+    }
+}
+
+pub struct NorthropFlyShip {
+    ai: ShipAI,
+    id: Uuid,
+}
+
+impl NorthropFlyShip {
+    pub fn new() -> Self {
+        Self {
+            ai: ShipAI::new(
+                vec![
+                 //   AIAction::new_await(AIAction::MoveCautious(RelCords(1, 1)), |s: &Settings| s.value_stats.fly_speed),
+                  //  AIAction::RandomShoot,
+               //     AIAction::new_await(AIAction::MoveCautious(RelCords(-1, 1)), |s: &Settings| s.value_stats.fly_speed),
+                  //  AIAction::RandomShoot,
+                ]
+            ),
+            id: Uuid::new_v4(),
+        }
+    }
+}
+
+impl Ship for NorthropFlyShip {
+    fn display_type(&self) -> &str {
+        "northrop_fly"
+    }
+
+    fn get_id(&self) -> Uuid {
+        self.id
+    }
+
+    fn get_action(&mut self, cords: Cords, game_board: &HashMap<Cords, Box<dyn Ship>>, settings: &Settings) -> ShipAction {
+        self.ai.get_action(cords, game_board, settings)
+    }
+}
+
+pub struct B2FlyShip {
+    ai: ShipAI,
+    id: Uuid,
+}
+
+impl B2FlyShip {
+    pub fn new() -> Self {
+        Self {
+            ai: ShipAI::new(
+                vec![
+                //    AIAction::new_await(AIAction::MoveCautious(RelCords(1, 1)), |s: &Settings| s.value_stats.fly_speed),
+                 //   AIAction::RandomShoot,
+                //    AIAction::new_await(AIAction::MoveCautious(RelCords(-1, 1)), |s: &Settings| s.value_stats.fly_speed),
+                  //  AIAction::RandomShoot,
+                ]
+            ),
+            id: Uuid::new_v4(),
+        }
+    }
+}
+
+impl Ship for B2FlyShip {
+    fn display_type(&self) -> &str {
+        "b2_fly"
+    }
+
+    fn get_id(&self) -> Uuid {
+        self.id
+    }
+
+    fn get_action(&mut self, cords: Cords, game_board: &HashMap<Cords, Box<dyn Ship>>, settings: &Settings) -> ShipAction {
+        self.ai.get_action(cords, game_board, settings)
+    }
+}
+
 pub struct ExplosionShip {
     ai: ShipAI,
     id: Uuid,
@@ -55,7 +160,7 @@ impl ExplosionShip {
     pub fn new() -> Self {
         Self {
             ai: ShipAI::new(
-                vec![AIAction::new_await(AIAction::Remove, |_: &Settings| Duration::from_secs(2))]
+                vec![AIAction::new_await(AIAction::Remove, |_: &Settings| Duration::from_secs(1))]
             ),
             id: Uuid::new_v4(),
         }
@@ -114,6 +219,18 @@ pub fn new_fly_ship() -> Box<dyn Ship> {
     Box::new(FlyShip::new())
 }
 
+pub fn new_tiki_fly_ship() -> Box<dyn Ship> {
+    Box::new(TikiFlyShip::new())
+}
+
+pub fn new_northrop_fly_ship() -> Box<dyn Ship> {
+    Box::new(NorthropFlyShip::new())
+}
+
+pub fn new_b2_fly_ship() -> Box<dyn Ship> {
+    Box::new(B2FlyShip::new())
+}
+
 pub fn new_explosion_ship() -> Box<dyn Ship> {
     Box::new(ExplosionShip::new())
 }
@@ -145,7 +262,10 @@ impl ShipGrid {
             if let Some(mut entity) = self.grid.remove(&old_coords) {
                 if entity.display_type() == "bullet" {
                     return Ok(None);
-                } else if entity.display_type() == "fly" {
+                } else if entity.display_type() == "fly"
+                    || entity.display_type() == "tiki_fly"
+                    || entity.display_type() == "northrop_fly"
+                    || entity.display_type() == "b2_fly" {
                     return if old_coords.0 < new_coords.0 && old_coords.0 <ROWS / 2 && new_coords.0 > ROWS / 2 {
                         self.grid.insert(old_coords, entity);
                         Ok(None)
@@ -178,6 +298,17 @@ impl ShipGrid {
                     let removed_type = existing_ship.as_ref().map(|ship| ship.display_type().to_string());
 
                     self.grid.insert(new_coords, new_explosion_ship());
+
+                    // Calculate score based on the type of fly destroyed
+                    if let Some(removed_type_str) = &removed_type {
+                        match removed_type_str.as_str() {
+                            "fly" => self.score += 100,
+                            "tiki_fly" => self.score += 150,
+                            "northrop_fly" => self.score += 200,
+                            "b2_fly" => self.score += 300,
+                            _ => {}
+                        }
+                    }
 
                     Ok(removed_type)
                 } else {
@@ -225,9 +356,6 @@ impl ShipGrid {
                     let result = self.move_entity(*coords, *new_coords, *wrapped);
 
                     if let Ok(Some(removed_type)) = result {
-                        if removed_type == "fly" {
-                            self.score += 100;
-                        }
                     }
                 },
                 ShipAction::Shoot => {
@@ -236,8 +364,12 @@ impl ShipGrid {
                 },
                 ShipAction::Remove => {
                     if let Some(ship) = self.grid.get(coords) {
-                        if ship.display_type() == "fly" {
-                            self.score += 100;
+                        match ship.display_type() {
+                            "fly" => self.score += 100,
+                            "tiki_fly" => self.score += 150,
+                            "northrop_fly" => self.score += 200,
+                            "b2_fly" => self.score += 300,
+                            _ => {}
                         }
                     }
                     self.grid.remove(coords);

@@ -62,7 +62,7 @@ impl App for MyApp {
 
         let pressure_threshold = 600;
         let mut ship_grid = ShipGrid::new();
-        let fly_spawner = FlySpawner::new();
+        let mut fly_spawner = FlySpawner::new();
         let message_processor = MessageProcessor::new(pressure_threshold);
         let game_renderer = GameRenderer::new();
         let star_background = Some(StarBackground::new(window_size));
@@ -133,14 +133,10 @@ impl MyApp {
         self.ship_grid.score
     }
 
-    fn spawn_initial_flies(&mut self) {
-        self.ship_grid.clear();
-        self.ship_grid.grid = self.fly_spawner.spawn_flies(self.settings.value_stats.number_of_flies);
-    }
 
     fn process_game_state(&mut self) {
         self.player.update();
-
+      //  self.player.shoot(&mut self.ship_grid.grid);
         self.handle_player_actions();
 
         if let Some(star_background) = &mut self.star_background {
@@ -148,6 +144,30 @@ impl MyApp {
         }
 
         self.ship_grid.process_ship_actions(&self.settings);
+
+        self.check_for_level_completion();
+    }
+
+    fn check_for_level_completion(&mut self) {
+        let fly_count = self.ship_grid.grid.iter().filter(|(_, ship)| {
+            let ship_type = ship.display_type();
+            ship_type == "fly" || ship_type == "tiki_fly" ||
+                ship_type == "northrop_fly" || ship_type == "b2_fly"
+        }).count();
+
+        let explosion_count = self.ship_grid.grid.iter()
+            .filter(|(_, ship)| ship.display_type() == "explosion")
+            .count();
+
+        if fly_count == 0 && explosion_count == 0 {
+            self.ship_grid.grid = self.fly_spawner.spawn_next_level();
+        }
+    }
+
+    fn spawn_initial_flies(&mut self) {
+        self.fly_spawner.reset_level();
+        self.ship_grid.clear();
+        self.ship_grid.grid = self.fly_spawner.spawn_flies(self.fly_spawner.get_current_fly_count());
     }
 
     fn handle_player_actions(&mut self) -> bool {

@@ -2,9 +2,9 @@ use std::time::Instant;
 
 pub const SIZE: usize = 10;
 pub const ROWS: usize = SIZE + 2;
-pub const COLUMNS: usize = SIZE + 4;
+pub const COLUMNS: usize = SIZE + 6;
 
-pub const CELL_SIZE: (u32, u32) = (50, 50);
+pub const CELL_SIZE: (u32, u32) = (45, 45);
 pub const MARGIN: u32 = 5;
 pub const START_X: u32 = 5;
 pub const START_Y: u32 = 50;
@@ -13,7 +13,7 @@ pub const START_Y: u32 = 50;
 #[derive(Clone, Copy, Eq, Hash, PartialEq, Debug)]
 pub struct Cords(pub usize, pub usize);
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct RelCords(pub i32, pub i32);
 
 
@@ -59,8 +59,6 @@ pub enum ShipAction {
     Shoot,
     Move(Cords, bool),
 }
-
-
 
 #[derive(Clone, Debug)]
 pub struct Timer {

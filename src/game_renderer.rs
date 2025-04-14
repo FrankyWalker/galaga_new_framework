@@ -88,10 +88,7 @@ impl GameRenderer {
 
             let image_key = self.select_image_for_ship(
                 ship.as_ref(),
-                image_handler.fly,
-                image_handler.explosion,
-                image_handler.bullet_downward,
-                image_handler.bullet_upward
+                image_handler
             );
 
             items.push(self.create_canvas_image_item(position, image_key));
@@ -124,18 +121,16 @@ impl GameRenderer {
     fn select_image_for_ship(
         &self,
         ship: &dyn Ship,
-        image_fly: ImageKey,
-        explosion: ImageKey,
-        bullet_downward: ImageKey,
-        bullet_upward: ImageKey,
+        image_handler: &GameImageHandler,
     ) -> ImageKey {
         match ship.display_type() {
-            "fly" => image_fly,
-            "explosion" => explosion,
-            "bullet" => {
-                bullet_downward
-            },
-            _ => image_fly,
+            "fly" => image_handler.fly,
+            "tiki_fly" => image_handler.tiki_fly,
+            "northrop_fly" => image_handler.northrop_fly,
+            "b2_fly" => image_handler.b2_fly,
+            "explosion" => image_handler.explosion,
+            "bullet" => image_handler.bullet_downward,
+            _ => image_handler.fly,
         }
     }
 
