@@ -2,7 +2,7 @@ use crate::settings::Settings;
 use crate::ship::{new_b2_fly_ship, new_fly_ship, new_northrop_fly_ship, new_tiki_fly_ship, Ship};
 use crate::structs::{Cords, COLUMNS};
 use rand::rngs::StdRng;
-use rand::SeedableRng;
+use rand::{Rng, SeedableRng};
 use std::collections::HashMap;
 
 pub struct FlySpawner {
@@ -19,101 +19,69 @@ impl FlySpawner {
             cols: COLUMNS,
             settings: Settings::new(),
             current_level: 1,
-            flies_per_level_base: 5,
+            flies_per_level_base: 10, // Doubled from 5 to 10
             rng: StdRng::seed_from_u64(42),
         }
     }
 
     pub fn spawn_flies(&mut self, fly_count: u32) -> HashMap<Cords, Box<dyn Ship>> {
         let mut grid = HashMap::new();
-        self.create_diamond_formation(&mut grid, fly_count);
+        // Always use wave formation regardless of level
+        self.create_wave_formation(&mut grid, fly_count);
         grid
     }
 
-    fn get_ship_for_level(&self, tier: u32) -> Box<dyn Ship> {
-        match tier {
-            0 => {
-                new_fly_ship()
-            },
-            1 => {
-                if self.current_level >= 2 {
-                    new_tiki_fly_ship()
-                } else {
-                    new_fly_ship()
-                }
-            },
-            2 => {
-                if self.current_level >= 3 {
-                    new_northrop_fly_ship()
-                } else if self.current_level >= 2 {
-                    new_tiki_fly_ship()
-                } else {
-                    new_fly_ship()
-                }
-            },
-            _ => {
-                if self.current_level >= 4 {
-                    new_b2_fly_ship()
-                } else if self.current_level >= 3 {
-                    new_northrop_fly_ship()
-                } else if self.current_level >= 2 {
-                    new_tiki_fly_ship()
-                } else {
-                    new_fly_ship()
-                }
-            }
+    fn get_random_ship(&mut self) -> Box<dyn Ship> {
+        // Randomly choose a ship type
+        match self.rng.gen_range(0..4) {
+            0 => new_fly_ship(),
+            1 => new_tiki_fly_ship(),
+            2 => new_northrop_fly_ship(),
+            _ => new_b2_fly_ship(),
         }
     }
 
-    fn create_diamond_formation(&mut self, grid: &mut HashMap<Cords, Box<dyn Ship>>, fly_count: u32) {
-        let middle_col = self.cols / 2;
+    fn create_wave_formation(&mut self, grid: &mut HashMap<Cords, Box<dyn Ship>>, fly_count: u32) {
         let mut flies_placed = 0;
+        let max_rows = 5;
 
-        grid.insert(Cords(0, middle_col), new_tiki_fly_ship());
-        flies_placed += 1;
-        if flies_placed >= fly_count { return; }
+        // Fill the wave pattern with random ships
+        for row in 0..max_rows {
+            for col in (row % 3 + 2..self.cols - 2).step_by(3) {
+                if flies_placed >= fly_count { return; }
+                grid.insert(Cords(row, col), self.get_random_ship());
+                flies_placed += 1;
+            }
+        }
 
-        grid.insert(Cords(1, middle_col - 2), new_b2_fly_ship());
-        grid.insert(Cords(1, middle_col + 2), new_b2_fly_ship());
-        grid.insert(Cords(2, middle_col), new_b2_fly_ship());
-        flies_placed += 3;
-        if flies_placed >= fly_count { return; }
+        // If we still need more flies, fill in additional positions
+        let mut row = 0;
+        let mut col = 0;
 
-        grid.insert(Cords(2, middle_col - 4), new_northrop_fly_ship());
-        grid.insert(Cords(2, middle_col + 4), new_northrop_fly_ship());
-        flies_placed += 2;
-        if flies_placed >= fly_count { return; }
+        while flies_placed < fly_count {
+            // Skip positions that are already filled
+            if !grid.contains_key(&Cords(row, col)) {
+                grid.insert(Cords(row, col), self.get_random_ship());
+                flies_placed += 1;
+            }
 
-        grid.insert(Cords(3, middle_col - 6), self.get_ship_for_level(0));
-        grid.insert(Cords(3, middle_col - 2), self.get_ship_for_level(0));
-        grid.insert(Cords(3, middle_col + 2), self.get_ship_for_level(0));
-        grid.insert(Cords(3, middle_col + 6), self.get_ship_for_level(0));
-        flies_placed += 4;
-        if flies_placed >= fly_count { return; }
-
-        let extra_positions = vec![
-            (0, middle_col - 2), (0, middle_col + 2),
-            (1, middle_col), (1, middle_col - 4), (1, middle_col + 4),
-            (2, middle_col - 2), (2, middle_col + 2),
-            (3, middle_col), (3, middle_col - 4), (3, middle_col + 4)
-        ];
-
-        for (idx, (row, col)) in extra_positions.iter().enumerate() {
-            let fly_tier = idx % 4;
-            grid.insert(Cords(*row, *col), self.get_ship_for_level(fly_tier as u32));
-            flies_placed += 1;
-            if flies_placed >= fly_count { return; }
+            // Move to next position
+            col += 2;
+            if col >= self.cols {
+                col = 0;
+                row = (row + 1) % max_rows;
+            }
         }
     }
 
     pub fn spawn_next_level(&mut self) -> HashMap<Cords, Box<dyn Ship>> {
         self.current_level += 1;
 
-
         let seed = 42 + self.current_level as u64;
         self.rng = StdRng::seed_from_u64(seed);
 
-        let fly_count = self.flies_per_level_base + self.current_level;
+        // Double the fly count from the original calculation
+        let fly_count = (self.flies_per_level_base + self.current_level) * 2;
         self.spawn_flies(fly_count)
     }
 
@@ -123,6 +91,7 @@ impl FlySpawner {
     }
 
     pub fn get_current_fly_count(&self) -> u32 {
-        self.flies_per_level_base + self.current_level
+        // Double the fly count from the original calculation
+        (self.flies_per_level_base + self.current_level) * 2
     }
 }

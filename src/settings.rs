@@ -47,7 +47,7 @@ impl Values {
             invincible: false,
             fly_move: true,
             laser_shoot: true,
-            number_of_flies: 8,
+            number_of_flies: 17,
             fly_speed: Duration::from_millis(900),
             laser_speed: Duration::from_millis(300),
             shooting_randomness: 10,

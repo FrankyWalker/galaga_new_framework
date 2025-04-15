@@ -124,8 +124,22 @@ impl AIAction {
                         _ => 50,
                     };
 
+
+                    let mut can_shoot = true;
+                    for row in (cords.0 + 1)..ROWS {
+                        let check_coords = Cords(row, cords.1);
+                        if let Some(ship) = game_board.get(&check_coords) {
+                            let ship_type = ship.display_type();
+                            if ship_type == "fly" || ship_type == "tiki_fly" ||
+                                ship_type == "northrop_fly" || ship_type == "b2_fly" {
+                                can_shoot = false;
+                                break;
+                            }
+                        }
+                    }
+
                     let condition = Condition::ShootPositionAvailable(RelCords(1, 0));
-                    if condition.evaluate(cords, game_board) && rng.gen_range(1..=100) <= threshold {
+                    if condition.evaluate(cords, game_board) && can_shoot && rng.gen_range(1..=100) <= threshold {
                         AIActionResult {
                             move_on_to_next_action: true,
                             ship_action: ShipAction::Shoot,
@@ -256,3 +270,4 @@ impl AIAction {
         }
     }
 }
+

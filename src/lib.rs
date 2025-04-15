@@ -136,7 +136,7 @@ impl MyApp {
 
     fn process_game_state(&mut self) {
         self.player.update();
-      //  self.player.shoot(&mut self.ship_grid.grid);
+        self.player.shoot(&mut self.ship_grid.grid);
         self.handle_player_actions();
 
         if let Some(star_background) = &mut self.star_background {

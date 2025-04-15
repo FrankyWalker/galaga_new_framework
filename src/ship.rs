@@ -21,10 +21,14 @@ impl FlyShip {
         Self {
             ai: ShipAI::new(
                 vec![
-          //          AIAction::new_await(AIAction::MoveCautious(RelCords(1, 1)), |s: &Settings| s.value_stats.fly_speed),
-                   // AIAction::RandomShoot,
-            //        AIAction::new_await(AIAction::MoveCautious(RelCords(-1, 1)), |s: &Settings| s.value_stats.fly_speed),
-                  //  AIAction::RandomShoot,
+                    //   AIAction::new_await(AIAction::MoveCautious(RelCords(1, 1)), |s: &Settings| s.value_stats.fly_speed),
+                    AIAction::RandomShoot,
+                    //  AIAction::new_await(AIAction::MoveCautious(RelCords(-1, 1)), |s: &Settings| s.value_stats.fly_speed),
+                    AIAction::new_await(AIAction::Nothing,|s: &Settings| s.value_stats.fly_speed),
+                    AIAction::new_await(AIAction::Nothing,|s: &Settings| s.value_stats.fly_speed),
+                    AIAction::new_await(AIAction::Nothing,|s: &Settings| s.value_stats.fly_speed),
+                    AIAction::new_await(AIAction::Nothing,|s: &Settings| s.value_stats.fly_speed),
+                    AIAction::RandomShoot,
                 ]
             ),
             id: Uuid::new_v4(),
@@ -56,10 +60,14 @@ impl TikiFlyShip {
         Self {
             ai: ShipAI::new(
                 vec![
-               //     AIAction::new_await(AIAction::MoveCautious(RelCords(1, 1)), |s: &Settings| s.value_stats.fly_speed),
-                 //   AIAction::RandomShoot,
-               //     AIAction::new_await(AIAction::MoveCautious(RelCords(-1, 1)), |s: &Settings| s.value_stats.fly_speed),
-                 //   AIAction::RandomShoot,
+                    //   AIAction::new_await(AIAction::MoveCautious(RelCords(1, 1)), |s: &Settings| s.value_stats.fly_speed),
+                    AIAction::RandomShoot,
+                    //  AIAction::new_await(AIAction::MoveCautious(RelCords(-1, 1)), |s: &Settings| s.value_stats.fly_speed),
+                    AIAction::new_await(AIAction::Nothing,|s: &Settings| s.value_stats.fly_speed),
+                    AIAction::new_await(AIAction::Nothing,|s: &Settings| s.value_stats.fly_speed),
+                    AIAction::new_await(AIAction::Nothing,|s: &Settings| s.value_stats.fly_speed),
+                    AIAction::new_await(AIAction::Nothing,|s: &Settings| s.value_stats.fly_speed),
+                    AIAction::RandomShoot,
                 ]
             ),
             id: Uuid::new_v4(),
@@ -92,9 +100,13 @@ impl NorthropFlyShip {
             ai: ShipAI::new(
                 vec![
                  //   AIAction::new_await(AIAction::MoveCautious(RelCords(1, 1)), |s: &Settings| s.value_stats.fly_speed),
-                  //  AIAction::RandomShoot,
-               //     AIAction::new_await(AIAction::MoveCautious(RelCords(-1, 1)), |s: &Settings| s.value_stats.fly_speed),
-                  //  AIAction::RandomShoot,
+                 AIAction::RandomShoot,
+                  //  AIAction::new_await(AIAction::MoveCautious(RelCords(-1, 1)), |s: &Settings| s.value_stats.fly_speed),
+                 AIAction::new_await(AIAction::Nothing,|s: &Settings| s.value_stats.fly_speed),
+                 AIAction::new_await(AIAction::Nothing,|s: &Settings| s.value_stats.fly_speed),
+                 AIAction::new_await(AIAction::Nothing,|s: &Settings| s.value_stats.fly_speed),
+                 AIAction::new_await(AIAction::Nothing,|s: &Settings| s.value_stats.fly_speed),
+                 AIAction::RandomShoot,
                 ]
             ),
             id: Uuid::new_v4(),
@@ -126,10 +138,14 @@ impl B2FlyShip {
         Self {
             ai: ShipAI::new(
                 vec![
-                //    AIAction::new_await(AIAction::MoveCautious(RelCords(1, 1)), |s: &Settings| s.value_stats.fly_speed),
-                 //   AIAction::RandomShoot,
-                //    AIAction::new_await(AIAction::MoveCautious(RelCords(-1, 1)), |s: &Settings| s.value_stats.fly_speed),
-                  //  AIAction::RandomShoot,
+                    //   AIAction::new_await(AIAction::MoveCautious(RelCords(1, 1)), |s: &Settings| s.value_stats.fly_speed),
+                    AIAction::RandomShoot,
+                    //  AIAction::new_await(AIAction::MoveCautious(RelCords(-1, 1)), |s: &Settings| s.value_stats.fly_speed),
+                    AIAction::new_await(AIAction::Nothing,|s: &Settings| s.value_stats.fly_speed),
+                    AIAction::new_await(AIAction::Nothing,|s: &Settings| s.value_stats.fly_speed),
+                    AIAction::new_await(AIAction::Nothing,|s: &Settings| s.value_stats.fly_speed),
+                    AIAction::new_await(AIAction::Nothing,|s: &Settings| s.value_stats.fly_speed),
+                    AIAction::RandomShoot,
                 ]
             ),
             id: Uuid::new_v4(),
@@ -299,7 +315,6 @@ impl ShipGrid {
 
                     self.grid.insert(new_coords, new_explosion_ship());
 
-                    // Calculate score based on the type of fly destroyed
                     if let Some(removed_type_str) = &removed_type {
                         match removed_type_str.as_str() {
                             "fly" => self.score += 100,
